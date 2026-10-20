@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {calculate,DEFAULTS,GRANT,initial,budgetTotals,restore} from './model.ts';
+test('base: 10 subscriptions, 150k revenue, 48k result, 6 to cover',()=>{const r=calculate(DEFAULTS);assert.equal(r.revenue,150000);assert.equal(r.result,48000);assert.equal(r.expenses,102000);assert.equal(r.breakEven,6)});
+test('scale: 20 subscriptions produce 156k result',()=>{const r=calculate({...DEFAULTS,subscriptions:20});assert.equal(r.revenue,300000);assert.equal(r.result,156000)});
+test('zero subscriptions keep fixed costs and have no fees',()=>{const r=calculate({...DEFAULTS,subscriptions:0});assert.equal(r.result,-60000);assert.equal(r.taxReserve,0);assert.equal(r.paymentFees,0)});
+test('threshold is the smallest integer that covers expenses',()=>{const r=calculate(DEFAULTS);assert.ok(calculate({...DEFAULTS,subscriptions:r.breakEven!}).result>=0);assert.ok(calculate({...DEFAULTS,subscriptions:r.breakEven!-1}).result<0)});
+test('zero or negative contribution has no meaningful threshold',()=>{assert.equal(calculate({...DEFAULTS,price:5000,variableCost:4600}).breakEven,null);assert.equal(calculate({...DEFAULTS,price:5000,variableCost:10000}).breakEven,null)});
+test('zero fixed expenses need zero subscriptions when contribution positive',()=>{assert.equal(calculate({...DEFAULTS,fixedCosts:0}).breakEven,0)});
+test('budget stays fixed, edits do not redistribute',()=>{const m=initial();assert.equal(budgetTotals(m.budget).allocated,GRANT);m.budget[0]+=10000;assert.equal(budgetTotals(m.budget).remaining,-10000);assert.equal(m.budget[1],180000);assert.equal(budgetTotals([0,0,0,0,0,0]).remaining,GRANT)});
+test('storage roundtrip preserves changes independently',()=>{const m=initial();m.params.subscriptions=40;m.params.taxReserveRate=9;m.budget[0]=350000;assert.deepEqual(restore(JSON.stringify(m)),m)});
+test('storage rejects invalid numbers and handles malformed or null data',()=>{assert.deepEqual(restore('broken'),initial());assert.deepEqual(restore('null'),initial());assert.equal(restore('{"params":{"price":1e999,"subscriptions":51}}').params.price,15000);assert.equal(restore('{"params":{"subscriptions":51}}').params.subscriptions,50)});
